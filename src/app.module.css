@@ -1,0 +1,50 @@
+*{
+    box-sizing: border-box;
+    padding: 0;
+    margin: 0;
+}
+
+.header{
+    background-color: #F5DDCC;
+    display: flex;
+    align-items: center;
+    justify-content: baseline;
+    width: 100vw;
+    height: 11vh;
+}
+.logo{
+    height: 10vh;
+}
+
+.main{
+    display: flex;
+    flex-direction: row;
+    align-items: center;
+    justify-content: space-evenly;
+    width: 100vw;
+    height: 81vh;
+    gap: 2vh;
+}
+
+.graph{
+    width: 49vw;
+}
+.table{
+    width: 49vw;
+}
+
+.footer{
+    display: flex;
+    align-items: center;
+    justify-content:flex-end;
+    width: 100vw;
+    height: 8vh;
+}
+
+.buttons{
+    display: flex;
+    align-items: center;
+    justify-content:flex-end;
+    gap: 0.5vw;
+    margin-right: 1vw;
+}
