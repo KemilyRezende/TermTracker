@@ -141,12 +141,28 @@ document.addEventListener("DOMContentLoaded", (event) => {
   });
 
   salvarBtn.addEventListener("click", () => {
+    const ctx = grafico.ctx;
+    const originalCompositeOperation = ctx.globalCompositeOperation;
+
+    // Define a operação para desenhar atrás do gráfico
+    ctx.globalCompositeOperation = "destination-over";
+
+    // Define a cor de fundo (use a cor do seu tema ou '#ffffff' para branco)
+    ctx.fillStyle = "#1e1e2f";
+
+    // Desenha o retângulo de fundo
+    ctx.fillRect(0, 0, grafico.canvas.width, grafico.canvas.height);
+
+    // Gera o link para download com o fundo aplicado
     const link = document.createElement("a");
     link.href = grafico.toBase64Image("image/png", 1);
     link.download = `grafico_temperatura_${new Date()
       .toISOString()
       .slice(0, 10)}.png`;
     link.click();
+
+    // Restaura a configuração original para não afetar o gráfico na tela
+    ctx.globalCompositeOperation = originalCompositeOperation;
   });
 
   // --- LÓGICA PRINCIPAL DE RECEBIMENTO DE DADOS ATUALIZADA ---
