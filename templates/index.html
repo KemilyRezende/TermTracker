@@ -1,0 +1,59 @@
+<!DOCTYPE html>
+<html lang="pt-br">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Monitor de Temperatura Flexível</title>
+
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script src="https://cdn.socket.io/4.7.5/socket.io.min.js"></script>
+
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+</head>
+
+<body>
+    <div class="container">
+        <div class="main-content">
+            <div class="controls">
+                <div class="control-group">
+                    <button id="reiniciar-btn">Limpar Gráfico</button>
+                    <button id="salvar-btn" style="margin-top: 10px;">Salvar Gráfico</button>
+                </div>
+
+                <div class="control-group">
+                    <label for="session-mode-checkbox" style="display: flex; align-items: center; cursor: pointer;">
+                        <input type="checkbox" id="session-mode-checkbox" style="width: auto; margin-right: 10px;">
+                        Ativar Modo de Sessão
+                    </label>
+                </div>
+
+                <fieldset id="session-controls" class="control-group" disabled>
+                    <legend>Configuração da Sessão</legend>
+                    <label for="t0-input">Temp. Inicial (T₀)</label>
+                    <input type="number" id="t0-input" placeholder="Ex: 20.0">
+
+                    <label for="deltat-input" style="margin-top: 10px;">Intervalo de Temp. (ΔT)</label>
+                    <input type="number" id="deltat-input" placeholder="Ex: 2.0">
+
+                    <label for="qtd-input" style="margin-top: 10px;">Qtd. de Medições</label>
+                    <input type="number" id="qtd-input" placeholder="Ex: 10">
+
+                    <button id="iniciar-btn" style="margin-top: 15px;">Iniciar Sessão</button>
+                </fieldset>
+            </div>
+
+            <div class="visualization">
+                <div id="status">Modo Contínuo Ativo</div>
+                <div id="temp-atual">-- °C</div>
+                <div class="chart-container">
+                    <canvas id="grafico-temperatura"></canvas>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script src="{{ url_for('static', filename='js/main.js') }}"></script>
+</body>
+
+</html>
