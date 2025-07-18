@@ -15,8 +15,10 @@ document.addEventListener("DOMContentLoaded", (event) => {
 
   // --- Variáveis de Estado (com a nova variável 'sessaoArmada') ---
   let modoSessaoAtivo = false;
-  let sessaoArmada = false; // <-- NOVA VARIÁVEL: true quando estamos esperando T₀
-  let medicaoAtiva = false; // true quando a sessão está efetivamente registrando dados
+  let sessaoArmada = false;
+  let medicaoAtiva = false;
+  let esperandoSubir = true;
+  let liveTemp = null;
   let t0, deltaT, qtdMedicoes;
   let medicoesFeitas = 0;
   let ultimoPontoRegistrado = null;
@@ -98,7 +100,6 @@ document.addEventListener("DOMContentLoaded", (event) => {
     }
   });
 
-  // LÓGICA DO BOTÃO INICIAR ATUALIZADA
   iniciarBtn.addEventListener("click", () => {
     const t0Val = parseFloat(t0Input.value);
     const deltaTVal = parseFloat(deltatInput.value);
@@ -117,14 +118,28 @@ document.addEventListener("DOMContentLoaded", (event) => {
       return;
     }
 
+    if (liveTemp === null) {
+      alert(
+        "Aguardando a primeira leitura de temperatura para iniciar a sessão. Tente novamente em um segundo."
+      );
+      return;
+    }
+
     limparGrafico();
 
     t0 = t0Val;
     deltaT = deltaTVal;
     qtdMedicoes = qtdVal;
 
-    medicaoAtiva = false; // A medição ainda não começou
-    sessaoArmada = true; // O sistema está "armado", esperando por T₀
+    // **LÓGICA DE DECISÃO DE DIREÇÃO**
+    if (liveTemp > t0) {
+      esperandoSubir = false; // Se a temp atual é MAIOR que o alvo, precisamos esperar ela DESCER.
+    } else {
+      esperandoSubir = true; // Se a temp atual é MENOR ou igual ao alvo, precisamos esperar ela SUBIR.
+    }
+
+    medicaoAtiva = false;
+    sessaoArmada = true;
     statusElement.textContent = `Sessão Armada! Aguardando ${t0.toFixed(
       1
     )}°C...`;
@@ -165,28 +180,35 @@ document.addEventListener("DOMContentLoaded", (event) => {
     ctx.globalCompositeOperation = originalCompositeOperation;
   });
 
-  // --- LÓGICA PRINCIPAL DE RECEBIMENTO DE DADOS ATUALIZADA ---
   socket.on("nova_temperatura", function (data) {
     const tempAtual = data.temp;
+    liveTemp = tempAtual; // Atualiza a temperatura ao vivo a cada recebimento
     tempElement.textContent = `${tempAtual.toFixed(1)} °C`;
 
-    // 1. Bloco de código para INICIAR a sessão quando T₀ for alcançado
+    // 1. Bloco para INICIAR a sessão (agora com verificação de direção)
     if (sessaoArmada && !medicaoAtiva) {
-      if (tempAtual >= t0) {
+      let gatilhoDisparado = false;
+
+      // Verifica se a condição de início foi atendida, respeitando a direção
+      if (esperandoSubir && tempAtual >= t0) {
+        gatilhoDisparado = true;
+      } else if (!esperandoSubir && tempAtual <= t0) {
+        gatilhoDisparado = true;
+      }
+
+      if (gatilhoDisparado) {
         // CONDIÇÃO ATINGIDA! COMEÇA A SESSÃO AGORA.
         medicaoAtiva = true;
-        startTime = Date.now(); // O cronômetro começa agora
-        ultimoPontoRegistrado = t0; // O primeiro ponto é T₀
+        startTime = Date.now();
+        ultimoPontoRegistrado = t0;
         medicoesFeitas = 1;
 
-        // Plota o primeiro ponto no gráfico
         grafico.data.labels.push("00:00");
         grafico.data.datasets[0].data.push(t0);
         grafico.update();
 
-        // Atualiza o status para a próxima medição
         if (medicoesFeitas >= qtdMedicoes) {
-          medicaoAtiva = false; // Finaliza se só havia 1 medição
+          medicaoAtiva = false;
           sessaoArmada = false;
           statusElement.textContent = `Sessão Concluída: 1 medição realizada.`;
         } else {
