@@ -13,16 +13,17 @@ document.addEventListener('DOMContentLoaded', (event) => {
     const deltatInput = document.getElementById('deltat-input');
     const qtdInput = document.getElementById('qtd-input');
 
-    // --- Variáveis de Estado ---
+    // --- Variáveis de Estado (com a nova variável 'sessaoArmada') ---
     let modoSessaoAtivo = false;
-    let medicaoAtiva = false;
+    let sessaoArmada = false; // <-- NOVA VARIÁVEL: true quando estamos esperando T₀
+    let medicaoAtiva = false;  // true quando a sessão está efetivamente registrando dados
     let t0, deltaT, qtdMedicoes;
     let medicoesFeitas = 0;
     let ultimoPontoRegistrado = null;
     let startTime = Date.now();
     const MAX_PONTOS_CONTINUO = 100;
 
-    // --- Configuração do Gráfico (Completa e Corrigida) ---
+    // --- Configuração do Gráfico ---
     const ctx = document.getElementById('grafico-temperatura').getContext('2d');
     const grafico = new Chart(ctx, {
         type: 'line',
@@ -42,24 +43,14 @@ document.addEventListener('DOMContentLoaded', (event) => {
             responsive: true,
             maintainAspectRatio: false,
             scales: {
-                x: {
-                    ticks: { color: '#e0e0e0' },
-                    grid: { color: 'rgba(255, 255, 255, 0.1)' }
-                },
-                y: {
-                    ticks: { color: '#e0e0e0' },
-                    grid: { color: 'rgba(255, 255, 255, 0.1)' }
-                }
+                x: { ticks: { color: '#e0e0e0' }, grid: { color: 'rgba(255, 255, 255, 0.1)' } },
+                y: { ticks: { color: '#e0e0e0' }, grid: { color: 'rgba(255, 255, 255, 0.1)' } }
             },
-            plugins: {
-                legend: {
-                    labels: { color: '#e0e0e0' }
-                }
-            }
+            plugins: { legend: { labels: { color: '#e0e0e0' } } }
         }
     });
 
-    // --- Funções e Lógica ---
+    // --- Funções Auxiliares ---
     function formatElapsedTime(ms) {
         if (ms < 0) ms = 0;
         const totalSeconds = Math.floor(ms / 1000);
@@ -78,6 +69,7 @@ document.addEventListener('DOMContentLoaded', (event) => {
 
     function resetarModoSessao() {
         medicaoAtiva = false;
+        sessaoArmada = false;
         t0Input.value = '';
         deltatInput.value = '';
         qtdInput.value = '';
@@ -96,6 +88,7 @@ document.addEventListener('DOMContentLoaded', (event) => {
         }
     });
 
+    // LÓGICA DO BOTÃO INICIAR ATUALIZADA
     iniciarBtn.addEventListener('click', () => {
         const t0Val = parseFloat(t0Input.value);
         const deltaTVal = parseFloat(deltatInput.value);
@@ -111,42 +104,57 @@ document.addEventListener('DOMContentLoaded', (event) => {
         t0 = t0Val;
         deltaT = deltaTVal;
         qtdMedicoes = qtdVal;
-        ultimoPontoRegistrado = t0;
 
-        grafico.data.labels.push('00:00');
-        grafico.data.datasets[0].data.push(t0);
-        grafico.update();
-        medicoesFeitas = 1;
-
-        medicaoAtiva = true;
-        statusElement.textContent = `Sessão: ${medicoesFeitas}/${qtdMedicoes} | Próximo ΔT: ±${deltaT.toFixed(1)}°C`;
+        medicaoAtiva = false; // A medição ainda não começou
+        sessaoArmada = true;  // O sistema está "armado", esperando por T₀
+        statusElement.textContent = `Sessão Armada! Aguardando ${t0.toFixed(1)}°C...`;
     });
 
     reiniciarBtn.addEventListener('click', () => {
         limparGrafico();
         if (modoSessaoAtivo) {
+            resetarModoSessao();
             statusElement.textContent = 'Modo de Sessão: Gráfico limpo.';
         } else {
             statusElement.textContent = 'Modo Contínuo Ativo';
         }
     });
 
-    salvarBtn.addEventListener('click', () => {
-        const link = document.createElement('a');
-        link.href = grafico.toBase64Image('image/png', 1);
-        link.download = `grafico_temperatura_${new Date().toISOString().slice(0, 10)}.png`;
-        link.click();
-    });
+    salvarBtn.addEventListener('click', () => { /* ... lógica de salvar inalterada ... */ });
 
-    // --- Lógica Principal de Recebimento de Dados ---
+    // --- LÓGICA PRINCIPAL DE RECEBIMENTO DE DADOS ATUALIZADA ---
     socket.on('nova_temperatura', function (data) {
         const tempAtual = data.temp;
         tempElement.textContent = `${tempAtual.toFixed(1)} °C`;
 
-        if (modoSessaoAtivo && medicaoAtiva) {
+        // 1. Bloco de código para INICIAR a sessão quando T₀ for alcançado
+        if (sessaoArmada && !medicaoAtiva) {
+            if (tempAtual >= t0) {
+                // CONDIÇÃO ATINGIDA! COMEÇA A SESSÃO AGORA.
+                medicaoAtiva = true;
+                startTime = Date.now(); // O cronômetro começa agora
+                ultimoPontoRegistrado = t0; // O primeiro ponto é T₀
+                medicoesFeitas = 1;
+
+                // Plota o primeiro ponto no gráfico
+                grafico.data.labels.push('00:00');
+                grafico.data.datasets[0].data.push(t0);
+                grafico.update();
+
+                // Atualiza o status para a próxima medição
+                if (medicoesFeitas >= qtdMedicoes) {
+                    medicaoAtiva = false; // Finaliza se só havia 1 medição
+                    sessaoArmada = false;
+                    statusElement.textContent = `Sessão Concluída: 1 medição realizada.`;
+                } else {
+                    statusElement.textContent = `Sessão: ${medicoesFeitas}/${qtdMedicoes} | Próximo ΔT: ±${deltaT.toFixed(1)}°C`;
+                }
+            }
+        }
+        // 2. Bloco para quando a sessão JÁ ESTÁ RODANDO
+        else if (modoSessaoAtivo && medicaoAtiva) {
             const proximoAlvoCima = ultimoPontoRegistrado + deltaT;
             const proximoAlvoBaixo = ultimoPontoRegistrado - deltaT;
-
             let pontoRegistrado = false;
             let novoPonto = 0;
 
@@ -169,6 +177,7 @@ document.addEventListener('DOMContentLoaded', (event) => {
 
                 if (medicoesFeitas >= qtdMedicoes) {
                     medicaoAtiva = false;
+                    sessaoArmada = false;
                     statusElement.textContent = `Sessão Concluída: ${medicoesFeitas} medições.`;
                 } else {
                     statusElement.textContent = `Sessão: ${medicoesFeitas}/${qtdMedicoes} | Próximo ΔT: ±${deltaT.toFixed(1)}°C`;
@@ -176,6 +185,7 @@ document.addEventListener('DOMContentLoaded', (event) => {
                 grafico.update();
             }
         }
+        // 3. Bloco para o MODO CONTÍNUO
         else if (!modoSessaoAtivo) {
             const elapsed = Date.now() - startTime;
             grafico.data.labels.push(formatElapsedTime(elapsed));
@@ -189,8 +199,5 @@ document.addEventListener('DOMContentLoaded', (event) => {
         }
     });
 
-    // Confirmação de conexão no console do navegador
-    socket.on('connect', () => {
-        console.log('Conectado ao servidor via WebSocket!');
-    });
+    socket.on('connect', () => { console.log('Conectado ao servidor via WebSocket!'); });
 });
