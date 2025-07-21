@@ -101,3 +101,8 @@ fieldset {
 fieldset:disabled {
     opacity: 0.4;
 }
+
+.btn-disabled {
+    opacity: 0.4;
+    cursor: not-allowed;
+}

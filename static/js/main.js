@@ -1,5 +1,6 @@
 document.addEventListener("DOMContentLoaded", (event) => {
   const socket = io();
+  const { jsPDF } = window.jspdf; // Disponibiliza o construtor do jsPDF
 
   // --- Elementos da Página ---
   const tempElement = document.getElementById("temp-atual");
@@ -9,11 +10,12 @@ document.addEventListener("DOMContentLoaded", (event) => {
   const iniciarBtn = document.getElementById("iniciar-btn");
   const reiniciarBtn = document.getElementById("reiniciar-btn");
   const salvarBtn = document.getElementById("salvar-btn");
+  const relatorioBtn = document.getElementById("relatorio-btn"); // Novo elemento
   const t0Input = document.getElementById("t0-input");
   const deltatInput = document.getElementById("deltat-input");
   const qtdInput = document.getElementById("qtd-input");
 
-  // --- Variáveis de Estado (com a nova variável 'sessaoArmada') ---
+  // --- Variáveis de Estado ---
   let modoSessaoAtivo = false;
   let sessaoArmada = false;
   let medicaoAtiva = false;
@@ -77,6 +79,7 @@ document.addEventListener("DOMContentLoaded", (event) => {
     grafico.update();
     startTime = Date.now();
     medicoesFeitas = 0;
+    relatorioBtn.classList.add('btn-disabled'); // Desabilita visualmente o botão
   }
 
   function resetarModoSessao() {
@@ -180,6 +183,51 @@ document.addEventListener("DOMContentLoaded", (event) => {
     ctx.globalCompositeOperation = originalCompositeOperation;
   });
 
+  relatorioBtn.addEventListener('click', () => {
+    if (relatorioBtn.classList.contains('btn-disabled')) {
+      if (!modoSessaoAtivo) {
+        alert("O relatório só pode ser gerado no 'Modo de Sessão'.");
+      } else if (medicaoAtiva || sessaoArmada) {
+        alert("Aguarde a sessão ser concluída para gerar o relatório.");
+      } else {
+        alert("Nenhum dado de sessão disponível. Inicie uma nova medição.");
+      }
+      return;
+    }
+
+    const doc = new jsPDF();
+    doc.setFontSize(20);
+    doc.text("Relatório de Medição de Temperatura", 105, 20, { align: 'center' });
+    doc.setFontSize(11);
+    doc.setTextColor(100);
+    doc.text(`Gerado em: ${new Date().toLocaleString()}`, 105, 28, { align: 'center' });
+    const imgData = grafico.toBase64Image('image/png', 1.0);
+    doc.setFontSize(16);
+    doc.text("Gráfico da Sessão", 14, 45);
+    doc.addImage(imgData, 'PNG', 14, 50, 180, 80);
+    const head = [
+      ['#', 'Tempo Decorrido', 'Temperatura Registrada (°C)']
+    ];
+    const body = grafico.data.labels.map((label, index) => {
+      return [
+        index + 1,
+        label,
+        grafico.data.datasets[0].data[index].toFixed(2)
+      ];
+    });
+    doc.setFontSize(16);
+    doc.text("Dados da Sessão", 14, 145);
+    doc.autoTable({
+      head: head,
+      body: body,
+      startY: 150,
+      theme: 'striped',
+      headStyles: { fillColor: [22, 160, 133] }
+    });
+    doc.save(`relatorio_${new Date().toISOString().slice(0, 10)}.pdf`);
+  });
+
+  // --- Lógica Principal de Recebimento de Dados ---
   socket.on("nova_temperatura", function (data) {
     const tempAtual = data.temp;
     liveTemp = tempAtual; // Atualiza a temperatura ao vivo a cada recebimento
@@ -210,7 +258,8 @@ document.addEventListener("DOMContentLoaded", (event) => {
         if (medicoesFeitas >= qtdMedicoes) {
           medicaoAtiva = false;
           sessaoArmada = false;
-          statusElement.textContent = `Sessão Concluída: 1 medição realizada.`;
+          statusElement.textContent = `Sessão Concluída: ${medicoesFeitas} medição realizada.`;
+          relatorioBtn.classList.remove('btn-disabled'); // Habilita o botão
         } else {
           statusElement.textContent = `Sessão: ${medicoesFeitas}/${qtdMedicoes} | Próximo ΔT: ±${deltaT.toFixed(
             1
@@ -245,6 +294,7 @@ document.addEventListener("DOMContentLoaded", (event) => {
           medicaoAtiva = false;
           sessaoArmada = false;
           statusElement.textContent = `Sessão Concluída: ${medicoesFeitas} medições.`;
+          relatorioBtn.classList.remove('btn-disabled'); // Habilita o botão
         } else {
           statusElement.textContent = `Sessão: ${medicoesFeitas}/${qtdMedicoes} | Próximo ΔT: ±${deltaT.toFixed(
             1
