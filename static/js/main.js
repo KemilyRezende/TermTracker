@@ -221,7 +221,7 @@ document.addEventListener("DOMContentLoaded", (event) => {
       head: head,
       body: body,
       startY: 150,
-      theme: 'striped',
+      theme: 'grid',
       headStyles: { fillColor: [22, 160, 133] }
     });
     doc.save(`relatorio_${new Date().toISOString().slice(0, 10)}.pdf`);
